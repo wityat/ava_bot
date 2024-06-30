@@ -10,7 +10,7 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - ./tg_bot:/opt/tg_bot/tg_bot
+      - ./tg_bot:/opt/app/tg_bot
     networks:
       - default
     restart: unless-stopped

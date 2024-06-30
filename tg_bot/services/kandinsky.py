@@ -76,7 +76,7 @@ class KandinskyAPI:
             if data['status'] == 'DONE':
                 return data['images']
 
-    async def generate(self, query, manager: BgManager, progress_data=None):
+    async def generate(self, query, manager: BgManager=None, progress_data=None):
         model_id = await self.get_model()
         job_id = await self.create_generation_job(query, model_id)
 
@@ -90,7 +90,8 @@ class KandinskyAPI:
                     await asyncio.sleep(self.retry_config.delay_between_retries)
                     progress_data["remaining_seconds"] = progress_data["remaining_seconds"] - self.retry_config.delay_between_retries
                     progress_data["progress"] = (counter_retries+1) * 100 / self.retry_config.count_retries
-                    await manager.update(progress_data)
+                    if manager:
+                        await manager.update(progress_data)
                 counter_retries += 1
         else:
             return {'error': 'No job_id provided or generating failed'}
@@ -107,4 +108,8 @@ async def main():
         print(images)
     finally:
         await api.close_session()
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
 

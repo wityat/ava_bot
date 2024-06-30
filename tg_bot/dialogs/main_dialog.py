@@ -72,7 +72,7 @@ async def upload_photo(message: types.Message, dialog, manager: DialogManager):
         generation_job = GenerationJob(user=user, face_image=face_image)
         await face_image.save(db_session)
         await generation_job.save(db_session)
-        manager.current_context().dialog_data["generation_job_id"] = generation_job.id
+        manager.current_context().dialog_data["generation_job_id"] = await generation_job.awaitable_attrs.id
         await manager.switch_to(state=MainDialogStates.description)
     else:
         await manager.switch_to(state=MainDialogStates.photo_not_uploaded)
@@ -98,8 +98,8 @@ async def process_description__with_already_set_text(message: types.Message, dia
     old_generation_job = await GenerationJob.get(db_session, manager.current_context().dialog_data["generation_job_id"])
     new_generation_job = GenerationJob(
         text=old_generation_job.text,
-        user=old_generation_job.user,
-        face_image=old_generation_job.face_image,
+        user=await old_generation_job.awaitable_attrs.user,
+        face_image=await old_generation_job.awaitable_attrs.face_image,
     )
     await new_generation_job.save(db_session)
 
@@ -122,12 +122,13 @@ async def process_generating(manager_bg: BgManager, dialog_data):
         generated_image = base64.b64decode(images[0])
         face_image = dialog_data.get("face_image")
         face_image_data: io.BytesIO = await bot.download(face_image)
+        logging.warning("swapping face START")
         urls = await face_swapper.swap(generated_image,
                                        face_image_data.getvalue(),
                                        manager=manager_bg,
                                        progress_data=progress_data
                                        )
-        logging.warning("swapped DONE")
+        logging.warning("swapping face DONE")
         await manager_bg.update({"final_image_url": urls[0]})
     except Exception as e:
         logging.error(str(e))

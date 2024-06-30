@@ -2,13 +2,13 @@ from typing import Any
 
 from asyncpg import UniqueViolationError
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, AsyncAttrs
 from sqlalchemy.orm import declared_attr, DeclarativeBase
 
 from tg_bot.exceptions.db import DBException
 
 
-class Base(DeclarativeBase):
+class Base(DeclarativeBase, AsyncAttrs):
     id: Any
     __name__: str
     # Generate __tablename__ automatically

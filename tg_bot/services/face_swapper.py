@@ -23,16 +23,33 @@ class FaceSwapper:
                       "https://access3.faceswapper.ai",
                       "https://access4.faceswapper.ai"]
         self.retry_config = retry_config
+        self.auth_token = None
+
+    async def login(self):
+        url = "https://faceswapper.ai/api/User/LoginByIP"
+        async with aiohttp.ClientSession(headers={
+            "Origin": "https://faceswapper.ai",
+            "Referer": "https://faceswapper.ai/",
+        }) as session:
+            async with session.post(url, ssl=False) as response:
+                status = response.status
+                logging.warning(f"{status} {response.headers}")
+                if status == 200:
+                    response = await response.json()
+                    return response["data"]["token"]
+                else:
+                    return {'status': "failure", 'message': await response.text()}
 
     async def swap(self, file_to_replace_face, file_with_face, face_position=None,
                    manager: BgManager = None,  progress_data=None):
-        upload_result = await self.upload_files(file_to_replace_face, file_with_face, face_position)
+        auth_token = await self.login()
+        upload_result = await self.upload_files(file_to_replace_face, file_with_face, face_position, auth_token)
         retries_max_count = max(self.retry_config.count_retries, int(progress_data["remaining_seconds"]/self.retry_config.delay_between_retries))
         start_progress = copy(progress_data["progress"])
         if (code := upload_result.get('code', '')) != '':
             retry_counter = 0
             while retry_counter < retries_max_count:
-                status_result = await self.check_status(code)
+                status_result = await self.check_status(code, auth_token)
                 if status_result.get('status') == 'success':
                     return status_result["downloadUrls"]
                 else:
@@ -44,7 +61,7 @@ class FaceSwapper:
         else:
             return {'error': 'No code provided or upload failed'}
 
-    async def upload_files(self, file_to_replace_face, file_with_face, face_position=None):
+    async def upload_files(self, file_to_replace_face, file_with_face, face_position=None, auth_token=None):
         link = "/api/FaceSwapper/UploadByFile"
         data = aiohttp.FormData()
         # image to add face
@@ -62,23 +79,32 @@ class FaceSwapper:
         # Выбираем случайный хост для балансировки нагрузки
         host = random.choice(self.hosts)
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(headers={
+            "Origin": "https://faceswapper.ai",
+            "Referer": "https://faceswapper.ai/",
+            "Authorization": f"Bearer {auth_token}"
+        }) as session:
             async with session.post(host + link, data=data, ssl=False) as response:
                 status = response.status
+                logging.warning(f"{status} {response.headers}")
                 if status == 200:
                     response = await response.json()
                     return response["data"]
                 else:
                     return {'status': "failure", 'message': await response.text()}
 
-    async def check_status(self, code):
+    async def check_status(self, code, auth_token):
         link = "/api/FaceSwapper/CheckStatus"
         data = {"code": code}
 
         # Выбираем случайный хост для балансировки нагрузки
         host = random.choice(self.hosts)
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(headers={
+            "Origin": "https://faceswapper.ai",
+            "Referer": "https://faceswapper.ai/",
+            "Authorization": f"Bearer {auth_token}"
+        }) as session:
             async with session.post(host + link, json=data, ssl=False) as response:
                 status = response.status
                 if status == 200:
@@ -99,3 +125,7 @@ async def main():
         with open("img_1.png", "rb") as face:
             images = await api.swap(f, face)
             print(images)
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
